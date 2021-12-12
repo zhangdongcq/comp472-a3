@@ -1,10 +1,13 @@
 import gensim.downloader
 import csv
+import random
+import pandas as pd
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 def do_job(model_name):
     model = gensim.downloader.load(model_name)
-
     analysis = []
     correct_count = 0
     guess_count = 0
@@ -20,10 +23,10 @@ def do_job(model_name):
                     reader[i][2] in model or reader[i][3] in model or reader[i][4] in model or
                     reader[i][
                         5] in model):
-                label = "correct"
+                label_local = "correct"
                 correct_count += 1
             else:
-                label = "guess"
+                label_local = "guess"
                 guess_count += 1
             for j in range(2, len(reader[i])):
                 try:
@@ -33,10 +36,10 @@ def do_job(model_name):
                 except:
                     pass
 
-            if label != "guess" and guess != reader[i][1]:  # reader[i][1] answer
-                label = "wrong"
+            if label_local != "guess" and guess != reader[i][1]:  # reader[i][1] answer
+                label_local = "wrong"
                 correct_count -= 1
-            analysis.append([reader[i][0] + "," + reader[i][1] + "," + guess + "," + label])
+            analysis.append([reader[i][0] + "," + reader[i][1] + "," + guess + "," + label_local])
     with open(model_name + '-details.csv', 'w', newline='') as result:
         result_writer = csv.writer(result)
         result_writer.writerows(analysis)
@@ -53,12 +56,92 @@ if __name__ == '__main__':
     print(list(gensim.downloader.info()['models'].keys()))
 
     wiki_300 = do_job('fasttext-wiki-news-subwords-300')
-    # task 2.1
+    # task 2.1 -> 2 new models from different corpora [glove-twitter-200] and
+    # [glove-wiki-gigaword-200] but same embedding size [200]
     twitter_200 = do_job('glove-twitter-200')
     giga_word_200 = do_job('glove-wiki-gigaword-200')
 
+    # task 2.2 -> 2 new models from the same corpus [twitter] but different embedding size [25] and [50]
+    twitter_25 = do_job('glove-twitter-25')
+    twitter_50 = do_job('glove-twitter-50')
     with open('analysis.csv', 'w', newline='') as analysis_file:
         wr = csv.writer(analysis_file)
         wr.writerow([[wiki_300]])
         wr.writerow([[twitter_200]])
         wr.writerow([[giga_word_200]])
+        wr.writerow([[twitter_25]])
+        wr.writerow([[twitter_50]])
+
+    data = pd.read_csv('synonyms.csv', sep=",", header=0)
+    # random baseline
+    random.seed(0)
+    predictions = list()
+    for row in data.iterrows():
+        random_prediction = row[1][str(random.randint(1, 3))]
+        if random_prediction == row[1]["answer"]:
+            label = 'correct'
+        else:
+            label = 'wrong'
+        s = F"{row[1]['question']},{row[1]['answer']},{random_prediction},{label}"
+        predictions.append(s)
+
+    with open(f"random-baseline-details.csv", 'w') as f:
+        for prediction in predictions:
+            f.write(prediction + '\n')
+            print(prediction)
+
+    # compare them to a random baseline and a human gold-standard
+    with open(f"random-baseline-details.csv", 'r') as f:
+        for line in f.readlines():
+            predictions.append(line.split(','))
+            predictions[-1][-1] = predictions[-1][-1].rstrip("\n")
+    C = list(map(lambda x: x[-1], predictions)).count("correct")
+    V = list(map(lambda x: x[-1], predictions)).count("wrong") + C
+    random_baseline = "random-baseline" + "," + str(C / V)
+    human_standard = "human-gold-standard" + "," + str(0.8557)
+
+    with open('analysis_with_random_baseline.csv', 'w', newline='') as analysis_file:
+        wr = csv.writer(analysis_file)
+        wr.writerow([[wiki_300]])
+        wr.writerow([[twitter_200]])
+        wr.writerow([[giga_word_200]])
+        wr.writerow([[twitter_25]])
+        wr.writerow([[twitter_50]])
+        wr.writerow([[random_baseline]])
+        wr.writerow([[human_standard]])
+
+    # Prepare and plot graphic
+    header = ['name', 'accuracy']
+    data1 = ['random-baseline', C / V]
+    data2 = ['human-gold-standard', 0.8557]
+    data3 = ['glove-twitter-50', 0.46153846153846156]
+    data4 = ['glove-twitter-25', 0.46153846153846156]
+    data5 = ['glove-wiki-gigaword-200', 0.85]
+    data6 = ['glove-twitter-200', 0.5641025641025641]
+    data7 = ['fasttext-wiki-news-subwords-300', 0.925]
+    with open('perform.csv', 'w', encoding='UTF8') as f:
+        writer = csv.writer(f)
+
+        # write the header
+        writer.writerow(header)
+
+        # write the data
+        writer.writerow(data1)
+        writer.writerow(data2)
+        writer.writerow(data3)
+        writer.writerow(data4)
+        writer.writerow(data5)
+        writer.writerow(data6)
+        writer.writerow(data7)
+    csv_file = 'perform.csv'
+    data = pd.read_csv(csv_file)
+    model = data["name"]
+    ac = data["accuracy"]
+    x = list(model)
+    y = list(ac)
+    plt.figure(figsize=(19, 11))
+    plt.xlabel('Model Name')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy of different models')
+    plt.savefig('performance.pdf')
+    plt.bar(x, y)
