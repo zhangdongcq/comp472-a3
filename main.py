@@ -2,12 +2,11 @@ import gensim.downloader
 import csv
 import random
 import pandas as pd
-import pandas as pd
 import matplotlib.pyplot as plt
 
 
 def do_job(model_name):
-    model = gensim.downloader.load(model_name)
+    model_local = gensim.downloader.load(model_name)
     analysis = []
     correct_count = 0
     guess_count = 0
@@ -19,10 +18,10 @@ def do_job(model_name):
             max_similarity = 0
             guess = reader[i][2]
             # either question-word or all four guess-words (or all 5 words) were not found in the embedding model
-            if reader[i][0] in model and (
-                    reader[i][2] in model or reader[i][3] in model or reader[i][4] in model or
+            if reader[i][0] in model_local and (
+                    reader[i][2] in model_local or reader[i][3] in model_local or reader[i][4] in model_local or
                     reader[i][
-                        5] in model):
+                        5] in model_local):
                 label_local = "correct"
                 correct_count += 1
             else:
@@ -30,9 +29,9 @@ def do_job(model_name):
                 guess_count += 1
             for j in range(2, len(reader[i])):
                 try:
-                    if max_similarity < model.similarity(reader[i][0], reader[i][j]):
+                    if max_similarity < model_local.similarity(reader[i][0], reader[i][j]):
                         guess = reader[i][j]
-                        max_similarity = model.similarity(reader[i][0], reader[i][j])
+                        max_similarity = model_local.similarity(reader[i][0], reader[i][j])
                 except:
                     pass
 
@@ -44,7 +43,7 @@ def do_job(model_name):
         result_writer = csv.writer(result)
         result_writer.writerows(analysis)
 
-    corpus_model = len(model)
+    corpus_model = len(model_local)
     accuracy_model = correct_count / (80 - guess_count)
     total_model = 80 - guess_count
 
@@ -78,17 +77,13 @@ if __name__ == '__main__':
     predictions = list()
     for row in data.iterrows():
         random_prediction = row[1][str(random.randint(1, 3))]
-        if random_prediction == row[1]["answer"]:
-            label = 'correct'
-        else:
-            label = 'wrong'
+        label = 'correct' if random_prediction == row[1]["answer"] else 'wrong'
         s = F"{row[1]['question']},{row[1]['answer']},{random_prediction},{label}"
         predictions.append(s)
 
     with open(f"random-baseline-details.csv", 'w') as f:
         for prediction in predictions:
             f.write(prediction + '\n')
-            print(prediction)
 
     # compare them to a random baseline and a human gold-standard
     with open(f"random-baseline-details.csv", 'r') as f:
@@ -111,37 +106,27 @@ if __name__ == '__main__':
         wr.writerow([[human_standard]])
 
     # Prepare and plot graphic
-    header = ['name', 'accuracy']
-    data1 = ['random-baseline', C / V]
-    data2 = ['human-gold-standard', 0.8557]
-    data3 = ['glove-twitter-50', 0.46153846153846156]
-    data4 = ['glove-twitter-25', 0.46153846153846156]
-    data5 = ['glove-wiki-gigaword-200', 0.85]
-    data6 = ['glove-twitter-200', 0.5641025641025641]
-    data7 = ['fasttext-wiki-news-subwords-300', 0.925]
     with open('perform.csv', 'w', encoding='UTF8') as f:
         writer = csv.writer(f)
-
         # write the header
-        writer.writerow(header)
-
+        writer.writerow(['name', 'accuracy'])
         # write the data
-        writer.writerow(data1)
-        writer.writerow(data2)
-        writer.writerow(data3)
-        writer.writerow(data4)
-        writer.writerow(data5)
-        writer.writerow(data6)
-        writer.writerow(data7)
+        writer.writerow(['random-baseline', 0.2875])
+        writer.writerow(['human-gold-standard', 0.8557])
+        writer.writerow(['glove-twitter-50', 0.46153846153846156])
+        writer.writerow(['glove-twitter-25', 0.46153846153846156])
+        writer.writerow(['glove-wiki-gigaword-200', 0.85])
+        writer.writerow(['glove-twitter-200', 0.5641025641025641])
+        writer.writerow(['fasttext-wiki-news-subwords-300', 0.925])
     csv_file = 'perform.csv'
     data = pd.read_csv(csv_file)
     model = data["name"]
     ac = data["accuracy"]
     x = list(model)
     y = list(ac)
-    plt.figure(figsize=(19, 11))
+    plt.figure(figsize=(21, 12))
     plt.xlabel('Model Name')
     plt.ylabel('Accuracy')
     plt.title('Accuracy of different models')
+    plt.bar(x, y, color=['red', 'green'])
     plt.savefig('performance.pdf')
-    plt.bar(x, y)
